@@ -4,7 +4,7 @@ This is dead simple but useful command line tool which checks duplicated role in
 
 ## Why need check?
 
-In [[google_project_iam | Resources | hashicorp/google | Terraform Registry](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam)], it says:
+In [google_project_iam | Resources | hashicorp/google | Terraform Registry](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam), it says:
 
 > google_project_iam_binding: Authoritative for a given role. Updates the IAM policy to grant a role to a list of members. Other roles within the IAM policy for the project are preserved.
 
