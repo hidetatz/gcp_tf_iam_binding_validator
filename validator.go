@@ -1,49 +1,13 @@
-package main
+package gcp_tf_iam_binding_validator
 
 import (
-	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
 )
-
-func main() {
-	var dir = flag.String("dir", "", "target directory (All files under the dir will be target, non-recursive)")
-	flag.Parse()
-
-	if *dir == "" {
-		fmt.Fprintln(os.Stderr, "dir must not be empty")
-		os.Exit(1)
-	}
-
-	dirEntries, err := os.ReadDir(*dir)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "read dir: %v", err)
-		os.Exit(1)
-	}
-
-	files := []string{}
-	for _, entry := range dirEntries {
-		if entry.IsDir() {
-			continue
-		}
-
-		filename := entry.Name()
-		if strings.HasSuffix(filename, ".tf") || strings.HasSuffix(filename, ".json") {
-			files = append(files, filepath.Join(*dir, entry.Name()))
-		}
-	}
-
-	if err := validateFiles(files); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
 
 type Root struct {
 	Resources []*struct {
@@ -73,12 +37,12 @@ type GoogleProjectIAMBinding struct {
 	Role string
 }
 
-func validateFiles(files []string) error {
+func CheckDuplication(files []string) (map[string][]string, error) {
 	bodys := make([]hcl.Body, len(files))
 	for i := range files {
 		b, err := ParseFile(files[i])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bodys[i] = b
 	}
@@ -92,7 +56,7 @@ func validateFiles(files []string) error {
 	for _, body := range bodys {
 		var root Root
 		if diags := gohcl.DecodeBody(body, nil, &root); diags.HasErrors() {
-			return fmt.Errorf("decode whole body: %w", diags)
+			return nil, fmt.Errorf("decode whole body: %w", diags)
 		}
 
 		for _, resource := range root.Resources {
@@ -106,7 +70,7 @@ func validateFiles(files []string) error {
 			}
 
 			if diags := gohcl.DecodeBody(resource.HCLBody, nil, &buff); diags.HasErrors() {
-				return fmt.Errorf("decode google_project_iam_binding: %w", diags)
+				return nil, fmt.Errorf("decode google_project_iam_binding: %w", diags)
 			}
 
 			googleProjectIAMBindings = append(
@@ -130,23 +94,7 @@ func validateFiles(files []string) error {
 		rolesMap[binding.Role] = []string{binding.ID}
 	}
 
-	duplicated := false
-	for role, ids := range rolesMap {
-		if len(ids) > 1 {
-			duplicated = true
-			fmt.Fprintf(os.Stderr, "duplication found: role: %s, resources: %v\n", role, ids)
-		}
-	}
-
-	if duplicated {
-		return fmt.Errorf("validation failed")
-	}
-
-	return nil
-}
-
-func validateDirs(files []string) error {
-	return nil
+	return rolesMap, nil
 }
 
 func ParseFile(filename string) (hcl.Body, error) {
