@@ -45,6 +45,11 @@ type Root struct {
 		Kind    string   `hcl:"type,label"`
 		HCLBody hcl.Body `hcl:",remain"`
 	} `hcl:"output,block"`
+
+	Variables []*struct {
+		Kind    string   `hcl:"type,label"`
+		HCLBody hcl.Body `hcl:",remain"`
+	} `hcl:"variable,block"`
 }
 
 type GoogleProjectIAMBinding struct {
