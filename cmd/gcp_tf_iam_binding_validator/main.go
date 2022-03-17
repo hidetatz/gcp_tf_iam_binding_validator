@@ -32,7 +32,7 @@ func main() {
 		}
 
 		filename := entry.Name()
-		if strings.HasSuffix(filename, ".tf") || strings.HasSuffix(filename, ".json") {
+		if strings.HasSuffix(filename, ".tf") {
 			files = append(files, filepath.Join(*dir, entry.Name()))
 		}
 	}

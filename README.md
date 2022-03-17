@@ -32,7 +32,7 @@ If there are duplications, it will be shown in the standard output then the proc
 
 ## Usage
 
-Pass the directory which contains terraform (.tf) files. .json files are also ok.
+Pass the directory which contains terraform (.tf) files.
 
 ```shell
 gcp_tf_iam_binding_validator -dir ./test/1
