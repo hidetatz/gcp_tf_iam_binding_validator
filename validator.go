@@ -40,6 +40,11 @@ type Root struct {
 		Kind    string   `hcl:"type,label"`
 		HCLBody hcl.Body `hcl:",remain"`
 	} `hcl:"provider,block"`
+
+	Outputs []*struct {
+		Kind    string   `hcl:"type,label"`
+		HCLBody hcl.Body `hcl:",remain"`
+	} `hcl:"output,block"`
 }
 
 type GoogleProjectIAMBinding struct {
