@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -12,33 +13,36 @@ import (
 )
 
 func main() {
-	var (
-		files = flag.String("files", "", "target hcl/json files (comma-separated)")
-		dirs  = flag.String("dirs", "", "target directory (comma-separated. All files under the dir will be target)")
-	)
-
+	var dir = flag.String("dir", "", "target directory (All files under the dir will be target, non-recursive)")
 	flag.Parse()
 
-	if *files == "" && *dirs == "" {
-		fmt.Fprint(os.Stderr, "either files or dirs must be passed\n")
+	if *dir == "" {
+		fmt.Fprintln(os.Stderr, "dir must not be empty")
 		os.Exit(1)
 	}
 
-	if *files != "" {
-		fs := strings.Split(*files, ",")
-		if err := validateFiles(fs); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
+	dirEntries, err := os.ReadDir(*dir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "read dir: %v", err)
+		os.Exit(1)
 	}
 
-	ds := strings.Split(*dirs, ",")
-	if err := validateDirs(ds); err != nil {
+	files := []string{}
+	for _, entry := range dirEntries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+		if strings.HasSuffix(filename, ".tf") || strings.HasSuffix(filename, ".json") {
+			files = append(files, filepath.Join(*dir, entry.Name()))
+		}
+	}
+
+	if err := validateFiles(files); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	return
 }
 
 type Root struct {
@@ -114,15 +118,16 @@ func validateFiles(files []string) error {
 			)
 		}
 
-		for _, binding := range googleProjectIAMBindings {
-			ids, ok := rolesMap[binding.Role]
-			if ok {
-				rolesMap[binding.Role] = append(ids, binding.ID)
-				continue
-			}
+	}
 
-			rolesMap[binding.Role] = []string{binding.ID}
+	for _, binding := range googleProjectIAMBindings {
+		ids, ok := rolesMap[binding.Role]
+		if ok {
+			rolesMap[binding.Role] = append(ids, binding.ID)
+			continue
 		}
+
+		rolesMap[binding.Role] = []string{binding.ID}
 	}
 
 	duplicated := false
@@ -134,7 +139,7 @@ func validateFiles(files []string) error {
 	}
 
 	if duplicated {
-		return fmt.Errorf("validation failed. exit 1")
+		return fmt.Errorf("validation failed")
 	}
 
 	return nil
