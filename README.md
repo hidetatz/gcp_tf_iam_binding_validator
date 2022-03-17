@@ -26,6 +26,25 @@ This tool is much intended to be used in your CI workflow.
 This is an example for GitHub actions users:
 
 ```yaml
+name: Check gcp_tf_iam_binding_validator
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test_gcp_tf_iam_binding_validator:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+      - run: go install github.com/hidetatz/gcp_tf_iam_binding_validator/cmd/gcp_tf_iam_binding_validator@latest
+      - run: |
+          gcp_tf_iam_binding_validator -dir your_terraform_directory
 ```
 
 If there are duplications, it will be shown in the standard output then the process exits with 1. Otherwise 0.
