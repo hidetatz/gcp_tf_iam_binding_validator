@@ -16,6 +16,7 @@ type Root struct {
 		HCLBody hcl.Body `hcl:",remain"`
 	} `hcl:"resource,block"`
 
+	// Other resources are unused, but must define for decode.
 	Data []*struct {
 		Kind    string   `hcl:"type,label"`
 		ID      string   `hcl:"id,label"`
@@ -34,6 +35,11 @@ type Root struct {
 	Terraforms []*struct {
 		HCLBody hcl.Body `hcl:",remain"`
 	} `hcl:"terraform,block"`
+
+	Providers []*struct {
+		Kind    string   `hcl:"type,label"`
+		HCLBody hcl.Body `hcl:",remain"`
+	} `hcl:"provider,block"`
 }
 
 type GoogleProjectIAMBinding struct {
