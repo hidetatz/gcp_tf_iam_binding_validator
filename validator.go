@@ -30,6 +30,10 @@ type Root struct {
 	Locals []*struct {
 		HCLBody hcl.Body `hcl:",remain"`
 	} `hcl:"locals,block"`
+
+	Terraforms []*struct {
+		HCLBody hcl.Body `hcl:",remain"`
+	} `hcl:"terraform,block"`
 }
 
 type GoogleProjectIAMBinding struct {
