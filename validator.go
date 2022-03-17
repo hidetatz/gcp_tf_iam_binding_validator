@@ -85,19 +85,25 @@ func CheckDuplication(files []string) (map[string][]string, error) {
 			}
 
 			var buff struct {
-				Role    string   `hcl:"role"`
-				HCLBody hcl.Body `hcl:",remain"` // rest does not matter for validation
+				Role    hcl.Expression `hcl:"role"`
+				HCLBody hcl.Body       `hcl:",remain"` // rest does not matter for validation
 			}
 
 			if diags := gohcl.DecodeBody(resource.HCLBody, nil, &buff); diags.HasErrors() {
 				return nil, fmt.Errorf("decode google_project_iam_binding: %w", diags)
 			}
 
+			r, diags := buff.Role.Value(nil)
+			if diags.HasErrors() {
+				// if the role is not a pure string value (e.g. using variable), comes here
+				continue
+			}
+
 			googleProjectIAMBindings = append(
 				googleProjectIAMBindings,
 				&GoogleProjectIAMBinding{
 					ID:   resource.ID,
-					Role: buff.Role,
+					Role: r.AsString(),
 				},
 			)
 		}
