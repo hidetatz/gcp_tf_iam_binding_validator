@@ -16,6 +16,7 @@ func main() {
 		files = flag.String("files", "", "target hcl/json files (comma-separated)")
 		dirs  = flag.String("dirs", "", "target directory (comma-separated. All files under the dir will be target)")
 	)
+
 	flag.Parse()
 
 	if *files == "" && *dirs == "" {
