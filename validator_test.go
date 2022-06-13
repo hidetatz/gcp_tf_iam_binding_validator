@@ -3,6 +3,7 @@ package gcp_tf_iam_binding_validator
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -98,6 +99,10 @@ func TestCheckDuplication(t *testing.T) {
 			if err != nil {
 				t.Fatalf("check duplication: %v", err)
 			}
+
+			sort.Slice(bindings, func(i, j int) bool {
+				return strings.Join(bindings[i].Names, "_") < strings.Join(bindings[j].Names, "_")
+			})
 
 			if diff := cmp.Diff(bindings, tt.want); diff != "" {
 				t.Fatalf("%s\n", diff)
