@@ -14,6 +14,8 @@ This means if you apply a `google_project_iam_binding` which contain the same ro
 
 Even if you know the behavior, sometimes there can be a lot of .tf files in your workspace. In such cases, we want to make sure there are no `google_project_iam_binding` which already exists. This tool just does that.
 
+Note: This command is aware of condition block also.
+
 ## Installation
 
 Just run:

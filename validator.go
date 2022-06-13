@@ -10,8 +10,20 @@ import (
 	"github.com/tmccombs/hcl2json/convert"
 )
 
-func CheckDuplication(files []string) (map[string][]string, error) {
-	ret := map[string][]string{}
+type GoogleProjectIAMBinding struct {
+	Names          []string
+	Role           string
+	Project        string
+	ConditionTitle string
+	ConditionDesc  string
+	ConditionExpr  string
+}
+
+func FindGoogleProjectIAMBindings(files []string) ([]*GoogleProjectIAMBinding, error) {
+	// the map is used to find duplication in the set of google_project_iam_binding.
+	// The key is a formatted string: "$role_$project_$conditionTitle_$conditionDescription_$conditionExpression".
+	duplication := map[string]*GoogleProjectIAMBinding{}
+
 	for i := range files {
 		f, err := ParseFile(files[i])
 		if err != nil {
@@ -45,17 +57,15 @@ func CheckDuplication(files []string) (map[string][]string, error) {
 			continue
 		}
 
-		// the map is used to find duplication in the set of google_project_iam_binding.
-		// The key is a formatted string: "$role_$project_$conditionTitle_$conditionDescription_$conditionExpression".
-		// The value is a name of the resource.
-		bindings := map[string]struct{}{}
-
 		for name, body := range b {
 			content := body.([]interface{})[0].(map[string]interface{})
+
 			role := content["role"].(string)
 			project := content["project"].(string)
+
 			condition, ok := content["condition"].([]interface{})
 			var condTitle, condDesc, condExpr string
+			// condition is optional
 			if ok {
 				condTitle, ok = condition[0].(map[string]interface{})["title"].(string)
 				if !ok {
@@ -75,14 +85,25 @@ func CheckDuplication(files []string) (map[string][]string, error) {
 
 			key := fmt.Sprintf("%s_%s_%s_%s_%s", role, project, condTitle, condDesc, condExpr)
 
-			fmt.Println(key)
-
-			if _, found := bindings[key]; found {
-				ret[role] = append(ret[role], name)
+			if binding, found := duplication[key]; found {
+				binding.Names = append(binding.Names, name)
 			} else {
-				bindings[key] = struct{}{}
+				duplication[key] = &GoogleProjectIAMBinding{
+					Names:          []string{name},
+					Role:           role,
+					Project:        project,
+					ConditionTitle: condTitle,
+					ConditionDesc:  condDesc,
+					ConditionExpr:  condExpr,
+				}
 			}
 		}
+	}
+
+	ret := []*GoogleProjectIAMBinding{}
+
+	for _, d := range duplication {
+		ret = append(ret, d)
 	}
 
 	return ret, nil

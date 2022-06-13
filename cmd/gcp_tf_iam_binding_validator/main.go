@@ -37,17 +37,17 @@ func main() {
 		}
 	}
 
-	rolesMap, err := gcp_tf_iam_binding_validator.CheckDuplication(files)
+	bindings, err := gcp_tf_iam_binding_validator.FindGoogleProjectIAMBindings(files)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "check duplication: %v\n", err)
 		os.Exit(1)
 	}
 
 	duplicated := false
-	for role, ids := range rolesMap {
-		if len(ids) > 1 {
+	for _, binding := range bindings {
+		if len(binding.Names) > 1 {
 			duplicated = true
-			fmt.Fprintf(os.Stderr, "duplication found: role: %s, resources: %v\n", role, ids)
+			fmt.Fprintf(os.Stderr, "duplication found: role: %s, resources: %v\n", binding.Role, binding.Names)
 		}
 	}
 
