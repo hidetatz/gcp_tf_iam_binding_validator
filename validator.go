@@ -1,129 +1,95 @@
 package gcp_tf_iam_binding_validator
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/tmccombs/hcl2json/convert"
 )
 
-type Root struct {
-	Resources []*struct {
-		Kind    string   `hcl:"type,label"`
-		ID      string   `hcl:"id,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"resource,block"`
-
-	// Other resources are unused, but must define for decode.
-	Data []*struct {
-		Kind    string   `hcl:"type,label"`
-		ID      string   `hcl:"id,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"data,block"`
-
-	Modules []*struct {
-		Kind    string   `hcl:"type,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"module,block"`
-
-	Locals []*struct {
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"locals,block"`
-
-	Terraforms []*struct {
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"terraform,block"`
-
-	Providers []*struct {
-		Kind    string   `hcl:"type,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"provider,block"`
-
-	Outputs []*struct {
-		Kind    string   `hcl:"type,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"output,block"`
-
-	Variables []*struct {
-		Kind    string   `hcl:"type,label"`
-		HCLBody hcl.Body `hcl:",remain"`
-	} `hcl:"variable,block"`
-}
-
-type GoogleProjectIAMBinding struct {
-	ID   string
-	Role string
-}
-
 func CheckDuplication(files []string) (map[string][]string, error) {
-	bodys := make([]hcl.Body, len(files))
+	ret := map[string][]string{}
 	for i := range files {
-		b, err := ParseFile(files[i])
+		f, err := ParseFile(files[i])
 		if err != nil {
 			return nil, err
 		}
-		bodys[i] = b
-	}
 
-	var googleProjectIAMBindings []*GoogleProjectIAMBinding
-
-	// key: role, value: ids.
-	// This is used to make sure every role in google_project_iam_bindings are unique.
-	rolesMap := map[string][]string{}
-
-	for _, body := range bodys {
-		var root Root
-		if diags := gohcl.DecodeBody(body, nil, &root); diags.HasErrors() {
-			return nil, fmt.Errorf("decode whole body: %w", diags)
+		j, err := convert.File(f, convert.Options{})
+		if err != nil {
+			return nil, err
 		}
 
-		for _, resource := range root.Resources {
-			if resource.Kind != "google_project_iam_binding" {
-				continue
-			}
-
-			var buff struct {
-				Role    hcl.Expression `hcl:"role"`
-				HCLBody hcl.Body       `hcl:",remain"` // rest does not matter for validation
-			}
-
-			if diags := gohcl.DecodeBody(resource.HCLBody, nil, &buff); diags.HasErrors() {
-				return nil, fmt.Errorf("decode google_project_iam_binding: %w", diags)
-			}
-
-			r, diags := buff.Role.Value(nil)
-			if diags.HasErrors() {
-				// if the role is not a pure string value (e.g. using variable), comes here
-				continue
-			}
-
-			googleProjectIAMBindings = append(
-				googleProjectIAMBindings,
-				&GoogleProjectIAMBinding{
-					ID:   resource.ID,
-					Role: r.AsString(),
-				},
-			)
+		var mapped interface{}
+		if err := json.Unmarshal(j, &mapped); err != nil {
+			return nil, err
 		}
 
-	}
-
-	for _, binding := range googleProjectIAMBindings {
-		ids, ok := rolesMap[binding.Role]
-		if ok {
-			rolesMap[binding.Role] = append(ids, binding.ID)
+		r := mapped.(map[string]interface{})["resource"]
+		if r == nil {
+			// not a resource
 			continue
 		}
 
-		rolesMap[binding.Role] = []string{binding.ID}
+		g := r.(map[string]interface{})["google_project_iam_binding"]
+		if g == nil {
+			// not a google_project_iam_binding
+			continue
+		}
+
+		b, ok := g.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// the map is used to find duplication in the set of google_project_iam_binding.
+		// The key is a formatted string: "$role_$project_$conditionTitle_$conditionDescription_$conditionExpression".
+		// The value is a name of the resource.
+		bindings := map[string]struct{}{}
+
+		for name, body := range b {
+			content := body.([]interface{})[0].(map[string]interface{})
+			role := content["role"].(string)
+			project := content["project"].(string)
+			condition, ok := content["condition"].([]interface{})
+			var condTitle, condDesc, condExpr string
+			if ok {
+				condTitle, ok = condition[0].(map[string]interface{})["title"].(string)
+				if !ok {
+					condTitle = ""
+				}
+
+				condExpr, ok = condition[0].(map[string]interface{})["expression"].(string)
+				if !ok {
+					condExpr = ""
+				}
+
+				condDesc, ok = condition[0].(map[string]interface{})["description"].(string)
+				if !ok {
+					condDesc = ""
+				}
+			}
+
+			key := fmt.Sprintf("%s_%s_%s_%s_%s", role, project, condTitle, condDesc, condExpr)
+
+			fmt.Println(key)
+
+			if _, found := bindings[key]; found {
+				ret[role] = append(ret[role], name)
+			} else {
+				bindings[key] = struct{}{}
+			}
+		}
 	}
 
-	return rolesMap, nil
+	return ret, nil
+
 }
 
-func ParseFile(filename string) (hcl.Body, error) {
+func ParseFile(filename string) (*hcl.File, error) {
 	parser := hclparse.NewParser()
 
 	var (
@@ -141,5 +107,5 @@ func ParseFile(filename string) (hcl.Body, error) {
 		return nil, fmt.Errorf("parse file: %v", diagnostics.Error())
 	}
 
-	return hclF.Body, nil
+	return hclF, nil
 }
